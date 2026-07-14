@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "titre": "Crêpes",
+    "ingredients": [
+      "farine",
+      "oeufs",
+      "lait",
+      "sucre"
+    ],
+    "tempsPreparation": 15
+  },
+  {
+    "id": 2,
+    "titre": "Omelette",
+    "ingredients": [
+      "oeufs",
+      "sel",
+      "poivre"
+    ],
+    "tempsPreparation": 10
+  }
+]

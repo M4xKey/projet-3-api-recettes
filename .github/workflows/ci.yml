@@ -20,11 +20,5 @@ jobs:
       - name: Installer les dépendances
         run: npm ci
 
-      - name: Lancer les tests ou vérifier le serveur
-        run: |
-          if find . -path ./node_modules -prune -o \( -name "*.test.js" -o -name "*.spec.js" \) -print | grep -q .; then
-            npm test
-          else
-            echo "Aucun fichier de test trouvé, vérification de la syntaxe du serveur."
-            node --check server.js
-          fi
+      - name: Lancer les tests
+        run: npm test

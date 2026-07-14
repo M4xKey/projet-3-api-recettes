@@ -7,6 +7,10 @@ function formater(row) {
   return { ...row, ingredients: JSON.parse(row.ingredients) };
 }
 
+function estTempsPreparationValide(valeur) {
+  return typeof valeur === "number" && Number.isFinite(valeur) && valeur > 0;
+}
+
 // GET /recettes - lister toutes les recettes
 router.get("/", (req, res) => {
   const recettes = db.prepare("SELECT * FROM recettes").all();
@@ -29,6 +33,12 @@ router.post("/", authentifier, (req, res) => {
   if (!titre || !ingredients || !tempsPreparation) {
     return res.status(400).json({
       message: "Les champs titre, ingredients et tempsPreparation sont requis",
+    });
+  }
+
+  if (!estTempsPreparationValide(tempsPreparation)) {
+    return res.status(400).json({
+      message: "tempsPreparation doit être un nombre positif",
     });
   }
 
@@ -56,6 +66,13 @@ router.put("/:id", authentifier, (req, res) => {
   }
 
   const { titre, ingredients, tempsPreparation } = req.body;
+
+  if (tempsPreparation !== undefined && !estTempsPreparationValide(tempsPreparation)) {
+    return res.status(400).json({
+      message: "tempsPreparation doit être un nombre positif",
+    });
+  }
+
   const nouveauTitre = titre !== undefined ? titre : recette.titre;
   const nouveauxIngredients =
     ingredients !== undefined ? JSON.stringify(ingredients) : recette.ingredients;

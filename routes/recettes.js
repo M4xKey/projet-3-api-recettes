@@ -2,13 +2,10 @@ const express = require("express");
 const router = express.Router();
 const db = require("../db/database");
 const authentifier = require("../middlewares/auth");
+const { estTempsPreparationValide, champsRequisPresents } = require("../validation/recette");
 
 function formater(row) {
   return { ...row, ingredients: JSON.parse(row.ingredients) };
-}
-
-function estTempsPreparationValide(valeur) {
-  return typeof valeur === "number" && Number.isFinite(valeur) && valeur > 0;
 }
 
 // GET /recettes - lister toutes les recettes
@@ -30,7 +27,7 @@ router.get("/:id", (req, res) => {
 router.post("/", authentifier, (req, res) => {
   const { titre, ingredients, tempsPreparation } = req.body;
 
-  if (!titre || !ingredients || !tempsPreparation) {
+  if (!champsRequisPresents({ titre, ingredients, tempsPreparation })) {
     return res.status(400).json({
       message: "Les champs titre, ingredients et tempsPreparation sont requis",
     });

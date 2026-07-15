@@ -7,9 +7,15 @@ function emailUnique(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}@vitest.test`;
 }
 
+function nomUnique(prefix) {
+  return `${prefix}-vitest-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 afterAll(async () => {
   await prisma.recette.deleteMany({ where: { user: { email: { endsWith: "@vitest.test" } } } });
   await prisma.user.deleteMany({ where: { email: { endsWith: "@vitest.test" } } });
+  await prisma.categorie.deleteMany({ where: { nom: { contains: "-vitest-" } } });
+  await prisma.tag.deleteMany({ where: { nom: { contains: "-vitest-" } } });
   await prisma.$disconnect();
 });
 
@@ -105,6 +111,107 @@ describe("Recettes", () => {
     const res = await request(app)
       .delete(`/recettes/${recetteId}`)
       .set("Authorization", `Bearer ${tokenB}`);
+
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("Catégories et tags", () => {
+  async function creerUtilisateurAvecRecette(prefixEmail, titre) {
+    const email = emailUnique(prefixEmail);
+    const registerRes = await request(app)
+      .post("/auth/register")
+      .send({ email, password: "motdepasse123" });
+    const token = registerRes.body.token;
+
+    const recetteRes = await request(app)
+      .post("/recettes")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ titre, ingredients: ["ingrédient"], tempsPreparation: 10 });
+
+    return { token, recetteId: recetteRes.body.id };
+  }
+
+  it("POST /categories - crée une catégorie", async () => {
+    const { token } = await creerUtilisateurAvecRecette("cat-create", "Recette");
+    const res = await request(app)
+      .post("/categories")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ nom: nomUnique("Dessert") });
+
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBeDefined();
+  });
+
+  it("POST /categories - refuse un nom déjà utilisé (409)", async () => {
+    const { token } = await creerUtilisateurAvecRecette("cat-dup", "Recette");
+    const nom = nomUnique("Dessert");
+
+    await request(app).post("/categories").set("Authorization", `Bearer ${token}`).send({ nom });
+    const res = await request(app)
+      .post("/categories")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ nom });
+
+    expect(res.status).toBe(409);
+  });
+
+  it("POST /tags - crée un tag", async () => {
+    const { token } = await creerUtilisateurAvecRecette("tag-create", "Recette");
+    const res = await request(app)
+      .post("/tags")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ nom: nomUnique("Végétarien") });
+
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBeDefined();
+  });
+
+  it("attache puis détache une catégorie et un tag sur une recette possédée", async () => {
+    const { token, recetteId } = await creerUtilisateurAvecRecette("attach", "Tarte");
+
+    const categorieRes = await request(app)
+      .post("/categories")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ nom: nomUnique("Dessert") });
+    const categorieId = categorieRes.body.id;
+
+    const tagRes = await request(app)
+      .post("/tags")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ nom: nomUnique("Végétarien") });
+    const tagId = tagRes.body.id;
+
+    const apresAttache = await request(app)
+      .post(`/recettes/${recetteId}/categories/${categorieId}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(apresAttache.status).toBe(200);
+    expect(apresAttache.body.categories.map((c) => c.id)).toContain(categorieId);
+
+    await request(app)
+      .post(`/recettes/${recetteId}/tags/${tagId}`)
+      .set("Authorization", `Bearer ${token}`);
+
+    const apresDetache = await request(app)
+      .delete(`/recettes/${recetteId}/categories/${categorieId}`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(apresDetache.status).toBe(200);
+    expect(apresDetache.body.categories.map((c) => c.id)).not.toContain(categorieId);
+    expect(apresDetache.body.tags.map((t) => t.id)).toContain(tagId);
+  });
+
+  it("POST /recettes/:id/categories/:categorieId - échoue si la recette appartient à un autre utilisateur (403)", async () => {
+    const { recetteId } = await creerUtilisateurAvecRecette("attach-owner", "Tarte");
+    const { token: tokenIntrus } = await creerUtilisateurAvecRecette("attach-intrus", "Autre recette");
+
+    const categorieRes = await request(app)
+      .post("/categories")
+      .set("Authorization", `Bearer ${tokenIntrus}`)
+      .send({ nom: nomUnique("Dessert") });
+
+    const res = await request(app)
+      .post(`/recettes/${recetteId}/categories/${categorieRes.body.id}`)
+      .set("Authorization", `Bearer ${tokenIntrus}`);
 
     expect(res.status).toBe(403);
   });

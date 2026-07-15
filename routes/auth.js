@@ -1,7 +1,7 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const db = require("../db/database");
+const prisma = require("../db/prisma");
 
 const router = express.Router();
 const SALT_ROUNDS = 10;
@@ -20,18 +20,17 @@ router.post("/register", async (req, res) => {
     return res.status(400).json({ message: "Les champs email et password sont requis" });
   }
 
-  const dejaExistant = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
+  const dejaExistant = await prisma.user.findUnique({ where: { email } });
   if (dejaExistant) {
     return res.status(409).json({ message: "Un compte existe déjà avec cet email" });
   }
 
   const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
-  const resultat = db
-    .prepare("INSERT INTO users (email, password_hash) VALUES (?, ?)")
-    .run(email, passwordHash);
+  const user = await prisma.user.create({
+    data: { email, passwordHash },
+  });
 
-  const user = { id: resultat.lastInsertRowid, email };
   res.status(201).json({ token: genererToken(user) });
 });
 
@@ -43,12 +42,12 @@ router.post("/login", async (req, res) => {
     return res.status(400).json({ message: "Les champs email et password sont requis" });
   }
 
-  const user = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+  const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
     return res.status(401).json({ message: "Email ou mot de passe incorrect" });
   }
 
-  const motDePasseValide = await bcrypt.compare(password, user.password_hash);
+  const motDePasseValide = await bcrypt.compare(password, user.passwordHash);
   if (!motDePasseValide) {
     return res.status(401).json({ message: "Email ou mot de passe incorrect" });
   }

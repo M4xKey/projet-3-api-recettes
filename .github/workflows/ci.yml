@@ -7,6 +7,25 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: recettes_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/recettes_test
+      JWT_SECRET: test-secret-for-ci
+
     steps:
       - name: Récupérer le code
         uses: actions/checkout@v4
@@ -19,6 +38,9 @@ jobs:
 
       - name: Installer les dépendances
         run: npm ci
+
+      - name: Appliquer les migrations Prisma
+        run: npx prisma migrate deploy
 
       - name: Lancer les tests
         run: npm test

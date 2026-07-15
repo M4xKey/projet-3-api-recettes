@@ -1,26 +1,17 @@
-import path from "path";
-import fs from "fs";
-import { fileURLToPath } from "url";
 import { describe, it, expect, afterAll } from "vitest";
 import request from "supertest";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const TEST_DB_PATH = path.join(__dirname, "..", "db", "test.db");
-if (fs.existsSync(TEST_DB_PATH)) fs.rmSync(TEST_DB_PATH);
-process.env.DB_PATH = TEST_DB_PATH;
-process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret-for-ci";
-
-const { default: app } = await import("../app.js");
-const { default: db } = await import("../db/database.js");
-
-afterAll(() => {
-  db.close();
-});
+import app from "../app.js";
+import prisma from "../db/prisma.js";
 
 function emailUnique(prefix) {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}@test.com`;
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}@vitest.test`;
 }
+
+afterAll(async () => {
+  await prisma.recette.deleteMany({ where: { user: { email: { endsWith: "@vitest.test" } } } });
+  await prisma.user.deleteMany({ where: { email: { endsWith: "@vitest.test" } } });
+  await prisma.$disconnect();
+});
 
 describe("Auth", () => {
   it("POST /auth/register - inscription réussie", async () => {
